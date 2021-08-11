@@ -1,0 +1,858 @@
+#+AUTHOR: BuddhiLW
+#+STARTUP: latexpreview
+#+LATEX_HEADER: \usepackage{amsmath, physics}
+#+PROPERTY: header-args:clojure :tangle ./src/csv_ledger/core.clj :mkdirp yes
+
+* Manipulate CSV raw-data to produce Ledger history
+
+As a way to tackle the manual manipulation of excell tables, every month, let's automate this process.
+
+** Overview
+*** The creditor-debtor problem
+A table is given to us, which, among the raw-data given, there are:
+- CNPJ (unique identifiers of *debtors*)
+- Credit used (negative flux)
+  * Date in which it was used.
+  * Expire date to pay the loan.
+
+  Also, we have the data on the revenues:
+- CNPJ (unique identifiers of *debtors*)
+- Current amount collected (positive flux)
+
+  We wish to organize what are the first loans that should be payed, so to better alleviate our clients formal debt.
+  
+*** Solution
+- First, given a CNPJ, we have to create a list of /Credit use/, ordered by increasing date of expiry.
+- Second, liquidate the values listed in the /CNPJ's credit use/.
+- Generate a list of covered loans (payable).
+- Generate a list of to-pay loans, if the list is not totally covered.
+- Write a CSV file containing
+  1. CNPJ, Payable loans
+  2. CNPJ, To-pay loans
+  3. CNPJ, Cover status
+
+*** How to use it
+**** Requirements
+1. OpenJDK
+   - [[https://openjdk.java.net/install/][Linux (Debian (Ubuntu etc)/Fedora/RedHat et al)]].
+   - [[https://www.microsoft.com/openjdk][Windows ]]
+2. Clojure
+   - Linux: [[https://clojure.org/guides/getting_started#_installation_on_linux][Install script]], or use your favorite application manager (apt, pacman, etc).
+   - [[https://clojure.org/guides/getting_started#_installation_on_windows][Windows]].
+   - [[https://clojure.org/guides/getting_started#_installation_on_mac_via_homebrew][MacOS]]
+3. [[https://leiningen.org/][Leiningen]] must be installed on your system.
+   
+**** Install
+In the place you want to install the program,
+#+begin_src shell
+git clone https://github.com/FlowFinance/CSV-Ledger.git
+#+end_src
+
+**** Nativate to the local repository
+#+begin_src shell
+cd https://github.com/FlowFinance/CSV-Ledger.git
+#+end_src
+
+**** Use
+#+begin_src shell
+lein run "path-to-Faturas.csv" "path-to-VALORES-BIORC.csv"
+#+end_src
+
+**** Result
+Navigate to the =data= folder
+#+begin_src shell
+cd CSV-Ledger/data/
+#+end_src
+
+Look at the =ledger.csv=.
+
+** What libraries we are using:
+#+begin_src clojure :tangle no
+  :dependencies [[org.clojure/clojure "1.10.1"]
+                 [org.clojure/data.csv "1.0.0"]]
+#+end_src
+
+Specifically, we make use of =clojure.java.io=, which is part or =org.clojure/clojure=. This library makes possible opening, writing and copying data in files.
+
+Also, =org.clojure/data.csv= parses csv files to acceptable I/O format in Clojure.
+
+** Some details to keep in mind
+In the code, we infer that any path is taken in relation to the root folder of the project. So, equivalent to parting from:
+#+begin_src shell
+cd CSV-Ledger/
+#+end_src
+
+So, reading ="data/Faturamento.csv"=
+
+Means:
+#+begin_src shell
+  # (buddhilw '(~/PP/Clojure/csv-ledger)) λ tree
+  CSV-Ledger
+  .
+  ├── CHANGELOG.md
+  ├── data
+  │   ├── Faturamento.csv
+  │   └── VALORES_BIORC.csv
+  (...)
+#+end_src
+
+** Examples of use of CSV and I/O libraries in Clojure
+*** Template file
+In an =example= file,
+
+#+begin_src clojure :tangle no
+(ns csv-ledger.example
+  (:require [clojure.data.csv :as csv]
+            [clojure.java.io :as io])
+  (:gen-class))
+#+end_src
+
+*** Combining the libraries to look what's inside a file
+We can see the data inside a csv file by,
+
+#+begin_src clojure :tangle no
+(csv/read-csv (io/reader "data/Faturamento.csv"))
+#+end_src
+
+Resuming the output for brevity's sake,
+|           CNPJ | FATURAMENTO |        |
+|  1004287000190 |        3187 | 548654 |
+|  1318023000101 |        1635 | 212632 |
+|  3022033000120 |        3376 | 759793 |
+(...)
+
+*** Taking only a part of it (column names)
+
+Let's define a name for this input, =raw-data=,
+#+begin_src clojure :tangle no
+(def raw-data (csv/read-csv (io/reader "data/Faturamento.csv"))) 
+#+end_src
+
+: #'csv-ledger.example/raw-data
+
+We can take the first *row*, by
+#+begin_src clojure :tangle no
+(first (csv/read-csv (io/reader "data/Faturamento.csv")))
+#+end_src
+
+*Out:*
+| CNPJ | FATURAMENTO |   |
+
+Or,
+
+#+begin_src clojure :tangle no
+(first raw-data)
+#+end_src
+
+*Out:*
+| CNPJ | FATURAMENTO |   |
+
+Also,
+#+begin_src clojure :tangle no
+(first (csv/read-csv (io/reader "data/VALORES_BIORC.csv")))
+#+end_src
+
+*Out:*
+| CODCLIENTE | CPFCNPJCLI | NOMECLI | VENCIMENTO | NDOC | CODOPERACAO | VL_FACE | ATRASO | JUROSMORA | MULTA | TOTAL_RECEBIDO | A_RECEBER | TPBAIXA | VL_DCP | VL_DES | VL_DESCONTO |
+
+* TODO/NEXT/DONE
+
+*** TODO TODO:
+*** NEXT NEXT:
+*** DONE DONE:
+- Convert csv data into a vector of maps (key-value pairs).
+- Filter the vector of maps, selecting a certain CNPJ key-value pair.
+- Add the revenue values of a given CNPJ.
+- Compare with the summed value with the credit-debt.
+- Filter those who the sum-credit-debt is greater than the sum-revenue value
+- Calculate which credit-debt(s) should have preference being paid.
+- Output the credit-debt(s) payable and how much is left-to-pay.
+  
+*** Reconsidering
+- Create a new map with the summed-revenue value.
+
+* Development
+
+*Interesting reads*:
+- https://github.com/clojure/data.csv/ 
+- https://www.tutorialspoint.com/clojure/clojure_file_io.htm
+
+** Preparring CSV (Opening/Closing)
+#+begin_src clojure :tangle ./src/csv_ledger/core.clj :mkdirp yes
+  (ns csv-ledger.core
+    (:require [clojure.data.csv :as csv]
+              [clojure.java.io :as io])
+    (:gen-class))
+  
+  (defn -main
+    "Call on <<Faturamento.csv>> and <<VALORES_VIORC.csv>>;
+    Return \"ledger.csv\", which informs the situation of the balance."
+    [spenditure-table raw-table]
+    (println "Hello, World!"))
+  
+  (def opened-revenue (csv/read-csv (io/reader "data/Faturamento.csv")))
+  (def header-revenue (first opened-revenue))
+  (def raw-revenue (drop 1 opened-revenue))
+  
+  ;; The lazy way
+  (defn read-column [filename column-index]
+    (with-open [reader (io/reader filename)]
+      (let [data (csv/read-csv reader)]
+        (map #(nth % column-index) data))))
+  
+#+end_src
+
+#+RESULTS:
+| #'csv-ledger.core/-main             |
+| #'csv-ledger.core/raw-revenue       |
+| #'csv-ledger.core/read-column       |
+| #'csv-ledger.core/sum-second-column |
+
+** Managing row operations
+*** Example - Sum fixed collon
+#+begin_src clojure
+  (defn sum-second-column [filename]
+    (->> (read-column filename 1)
+         (drop 1) ;; Drop header column
+         (map #(Double/parseDouble %))
+         (reduce + 0)))
+#+end_src
+
+#+begin_src clojure :tangle no
+(sum-second-column "data/Faturamento.csv")
+#+end_src
+
+#+RESULTS:
+: class java.io.IOException
+
+*** Take 10 revenues
+
+Take 10 first values of revenues
+#+begin_src clojure :tangle no
+(take 10 (map #(nth % 1) raw-revenue))
+#+end_src
+
+# #+RESULTS:
+| 3187 | 1635 | 3376 | 2492 | 2728 | 3866 | 1393 | 1133 | 3139 | 2757 |
+
+*** Transform raw-data into map
+Index values with dictionaries (taken from https://github.com/clojure/data.csv/)
+
+*NOTE*: This transform is meant to be done on the =opened-revenue= symbol.
+
+#+begin_src clojure
+(defn csv-data->maps [csv-data]
+  (map zipmap
+       (->> (first csv-data) ;; First row is the header
+            (map keyword) ;; Drop if you want string keys instead
+            repeat)
+	  (rest csv-data)))
+#+end_src
+
+#+RESULTS:
+: #'csv-ledger.core/csv-data->maps
+
+*** Transform in a vector-of-maps 
+Transform csv-data into a vector of maps
+#+begin_src clojure
+(def vec-revenues (vec (csv-data->maps opened-revenue)))
+#+end_src
+
+*** Separate the unique-values of CNPJ
+Take the unique values (e.g., create a set)
+#+begin_src clojure
+(def unique-CNPJ (set (map :CNPJ (csv-data->maps opened-revenue))))
+#+end_src
+
+#+RESULTS:
+: #'csv-ledger.core/unique-CNPJ
+*** Select an CNPJ-pair as a filter (look for the values associated with the CNPJ)
+In a vector-of-maps, which ones contain a subset key-pair? e.g., which ones contain a give {:CNPJ unique-CNPJ}?
+
+**** Define a boolean function on subclasses
+The following function =submap?= takes a key-pair and a map and returns true if this key pair is contrained in the map.
+#+begin_src clojure
+  (defn submap? [a b]
+  "return true or false"
+    (every? (fn [[k v]] (= v (b k)))  a))
+#+end_src
+
+**** Test with filter
+If we now take a filter on the =vec-revenues=, for a given =:CNPJ= key-pair.
+
+#+begin_src clojure :tangle no
+(filter #(submap? {:CNPJ (first unique-CNPJ)} %) vec-revenues)
+#+end_src
+*RESULT*:
+| :CNPJ | 17194123000103 | :FATURAMENTO | 1247 | : | 468626 |
+
+or,
+#+begin_src clojure :tangle no
+  csv-ledger.core> (filter #(submap? {:CNPJ (first unique-CNPJ)} %) vec-revenues)
+  => ({:CNPJ "17194123000103", :FATURAMENTO "1247", : "468626"}
+#+end_src
+
+**** Consolidate the process with a Function
+Creating a function which take a =CNPJ-value= and filter the list for us
+
+#+begin_src clojure
+  (defn cnpj#
+    "take a =CNPJ-value= and narrow down to the subclass which has this CNPJ"
+    [CNPJ-value vec-revenues]
+    (filter #(submap? {:CNPJ CNPJ-value} %) vec-revenues))
+#+end_src
+
+#+RESULTS:
+: #'csv-ledger.core/cnpj#
+
+***** Example
+#+begin_src clojure
+  (cnpj# "17194123000103" vec-revenues)
+  ;; ({:CNPJ "17194123000103", :FATURAMENTO "1247", : "468626"}) 
+#+end_src
+
+#+RESULTS:
+| :CNPJ | 17194123000103 | :FATURAMENTO | 1247 | : | 468626 |
+
+| :CNPJ | 17194123000103 | :FATURAMENTO | 1247 | : | 468626 |
+
+** Add the values of a given CNPJ.
+*** Defining BIORC dataset,
+#+begin_src clojure
+  (def opened-biorc (csv/read-csv (io/reader "data/VALORES_BIORC.csv")))
+  (def vec-biorc (vec (csv-data->maps opened-biorc)))
+#+end_src
+
+#+RESULTS:
+| #'csv-ledger.core/opened-biorc |
+| #'csv-ledger.core/vec-biorc    |
+
+*** Generalize cnpj#
+#+begin_src clojure
+  (defn submap-cond#
+    "take a =CNPJ-value= and narrow down to the subclass which has this CNPJ"
+    [key value vec-revenues]
+    (filter #(submap? {(keyword key) value} %) vec-revenues))
+#+end_src
+
+#+RESULTS:
+: #'csv-ledger.core/submap-cond#
+
+**** Paticularize to CPFCNPJCLI
+#+begin_src clojure
+  (defn cpf-cnpj#
+    [value vec-revenues]
+      (submap-cond# "CPFCNPJCLI" value vec-revenues))
+#+end_src
+
+#+RESULTS:
+: #'csv-ledger.core/cpf-cnpj#
+
+*** Differences in performance
+Looking for a key on a map is O(1) and in a vector O(n).
+https://www.infoq.com/articles/in-depth-look-clojure-collections/
+
+#+begin_src clojure :tangle no
+(defn raw [n] (map keyword (map str (map char (range 97 (+ 97 n))))))
+(defn mk-lin [n] (interleave (raw n) (range n)))
+(defn mk-map [n] (apply hash-map (mk-lin n)))
+
+(defn lhas [k s] (some #{k} s))
+(defn mhas [k s] (s k))
+
+(defn churn [lookup maker n]
+  (let [ks (raw n)
+         elems (maker n)]
+   (dotimes [i 100000]
+     (doseq [k ks] (lookup k elems)))))
+
+
+(time (churn lhas mk-lin 5))
+; "Elapsed time: 998.997 msecs"
+
+
+(time (churn mhas mk-map 5))
+; "Elapsed time: 133.133 msecs"
+#+end_src
+
+#+RESULTS:
+| #'csv-ledger.core/raw    |
+| #'csv-ledger.core/mk-lin |
+| #'csv-ledger.core/mk-map |
+| #'csv-ledger.core/lhas   |
+| #'csv-ledger.core/mhas   |
+| #'csv-ledger.core/churn  |
+
+*** Selecting a non-unique value for a CNPJ on BIORC data-set
+
+By try and error, untill finding a non-unique key-value,
+
+#+begin_src clojure :tangle no
+(cpf-cnpj# (nth (vec unique-CNPJ) 6) vec-biorc)
+#+end_src
+
+| :VL_DES | 0 | :VENCIMENTO | 16/06/2021 | :VL_FACE | 734.85 | :MULTA | 5.33 | :TPBAIXA | B.PARCIAL | :NDOC | 7 | :TOTAL_RECEBIDO | 201.18 | :ATRASO | 30 | :CPFCNPJCLI | 17946892000110 | :CODOPERACAO | 10158 | :VL_DCP | 219.53 | :CODCLIENTE | 450 | :A_RECEBER | 544.33 | :VL_DESCONTO | 0 | :JUROSMORA | 5.33 | :NOMECLI | FIT 2 ACADEMIA LTDA |
+
+| :VL_DES | 0 | :VENCIMENTO | 16/07/2021 | :VL_FACE | 734.85 | :MULTA |    0 | :TPBAIXA | NULL      | :NDOC | 8 | :TOTAL_RECEBIDO |      0 | :ATRASO |  0 | :CPFCNPJCLI | 17946892000110 | :CODOPERACAO | 10158 | :VL_DCP | 205.61 | :CODCLIENTE | 450 | :A_RECEBER | 734.85 | :VL_DESCONTO | 0 | :JUROSMORA |    0 | :NOMECLI | FIT 2 ACADEMIA LTDA |
+
+**** Define a symbol
+=nu-value=: non-unique value
+#+begin_src clojure
+(def nu-value (cpf-cnpj# (nth (vec unique-CNPJ) 6) vec-biorc))
+#+end_src
+
+#+RESULTS:
+: #'csv-ledger.core/nu-value
+
+*** TODO Narrow to all non-unique elements
+**** Pred: non-unique
+A predicate for non-unique matches, for a given key.
+
+#+begin_src clojure :tangle no
+  ;; (defn non-unique#
+  ;;   [key coll]
+  ;;   (let [cond (partial submap-cond# key)
+  ;;         coll-recur coll
+  ;;         narrow #{}]
+  ;;     (if (empty? coll-recur)
+  ;;       narrow)
+  ;;     (if 
+  ;;       )))
+             
+  ;; (> (count (cond (key (first coll-recur)) coll-recur)) 1)
+#+end_src
+
+*** Add the values of this key
+
+#+begin_src clojure
+  (defn sum-a-numeric-key
+    [key coll]
+    (reduce + (map bigdec (map (keyword key) coll))))  
+#+end_src
+
+#+RESULTS:
+: #'csv-ledger.core/sum-a-numeric-key
+
+**** Example
+
+#+begin_src clojure :tangle no
+(sum-a-numeric-key "A_RECEBER" nu-value)
+#+end_src
+
+*RESULTS:*
+1279.18M
+
+#+begin_src clojure :tangle no
+(sum-a-numeric-key "TOTAL_RECEBIDO" nu-value)
+#+end_src
+
+*RESULTS:*
+201.18M
+
+*NOTE:* The "M" in the end of the value has nothing to do with the measure system. It's standard R$.
+
+** Compare revenue with credit-debt
+
+Given a CNPJ-key, we can catch both the total revenue, and remaining debt
+
+*** Example
+
+**** Revenue Symbol
+Let's  create a /symbol/ for the =non-unique-value=, nu-value, for revenues also.
+
+#+begin_src clojure :tangle no
+(def nu-value-revenue (cnpj# (nth (vec unique-CNPJ) 6) vec-revenues))
+#+end_src
+
+#+RESULTS:
+: #'csv-ledger.core/nu-value-revenue
+
+Take a look on what it looks like,
+
+#+begin_src clojure :tangle no 
+nu-value-revenue
+#+end_src
+
+*RESULTS:*
+| :CNPJ | 17946892000110 | :FATURAMENTO | 2633 | : | 741867 |
+
+These are the revenue-data for the CNPJ 17946892000110.
+
+Now, selecting only the "FATURAMENTO" value.
+
+#+begin_src clojure :tangle no
+((keyword "FATURAMENTO") (first nu-value-revenue))
+#+end_src
+
+#+RESULTS:
+: 2633
+
+**** Refresher of where we are,
+Remembering, his /To-pay loan/, and his /Total-payed loan/ are:
+
+#+begin_src clojure :tangle no
+(sum-a-numeric-key "A_RECEBER" nu-value)
+#+end_src
+
+*RESULTS:*
+1279.18M
+
+#+begin_src clojure :tangle no
+(sum-a-numeric-key "TOTAL_RECEBIDO" nu-value)
+#+end_src
+
+*RESULTS:*
+201.18M
+
+**** Making the math
+
+Answering the age-old question: does he have what it takes? 
+
+#+begin_src clojure :tangle no
+  (- (+ (bigdec ((keyword "FATURAMENTO") (first nu-value-revenue)))
+        (sum-a-numeric-key "TOTAL_RECEBIDO" nu-value))
+     (sum-a-numeric-key "A_RECEBER" nu-value)) 
+#+end_src
+
+#+RESULTS:
+: 1555.00M
+
+The number resulting number has a positive value. Thus, his [[https://www.investopedia.com/ask/answers/011315/what-difference-between-cash-flow-and-revenue.asp][Cash-flow]] is positive. We can pay all bills, in whichever order we wish.
+
+*** Wrapping the procedure in a function
+
+#+begin_src clojure
+  (defn cash-flow
+    "Calculate the cash-flow for a given cnpj-client"
+    [cnpj vec-revenues vec-biorc]
+    (let [nu-value-revenue (cnpj# cnpj vec-revenues)
+          nu-value-spent (cpf-cnpj# cnpj vec-biorc)]
+      (- (+ (bigdec ((keyword "FATURAMENTO") (first nu-value-revenue)))
+            (sum-a-numeric-key "TOTAL_RECEBIDO" nu-value-spent))
+         (sum-a-numeric-key "A_RECEBER" nu-value-spent))))
+#+end_src
+
+**** Example
+
+#+begin_src clojure :tangle no
+  (cash-flow (nth (vec unique-CNPJ) 6) vec-revenues vec-biorc)
+#+end_src
+
+*RESULTS:*
+: 1555.00M
+
+Mapping the function =cash-flow= into 10 fist values,
+#+begin_src clojure :tangle no
+(take 10 (map #(cash-flow % vec-revenues vec-biorc) unique-CNPJ))
+#+end_src
+
+#+RESULTS:
+| 575.65M | 2637.2M | 1804.7M | 3187.85M | 2606.78M | 2823.39M | 1555.00M | -772.41M | 1931.8M | -2378.72M |
+
+Take the first 10 CNPJ values mapped explicitly,
+#+begin_src clojure :tangle no
+(map  #(nth (vec unique-CNPJ) %) (range 10))
+#+end_src
+
+#+RESULTS:
+| 17194123000103 | 25080236000106 | 28945518000117 | 22209468000123 | 19461682000168 | 36030066000171 | 17946892000110 | 3022033000120 | 28531013000106 | 26797909000106 |
+
+Zip these, so in a /map/ of key-pairs.
+#+begin_src clojure :tangle no 
+  (zipmap
+   (map keyword
+        (map #(nth (vec unique-CNPJ) %)
+             (range 10)))
+   (take 10
+         (map #(cash-flow % vec-revenues vec-biorc)
+              unique-CNPJ)))
+#+end_src
+
+#+RESULTS:
+| :36030066000171 | 2823.39M | :3022033000120 | -772.41M | :28531013000106 | 1931.8M | :19461682000168 | 2606.78M | :25080236000106 | 2637.2M | :17946892000110 | 1555.00M | :17194123000103 | 575.65M | :28945518000117 | 1804.7M | :26797909000106 | -2378.72M | :22209468000123 | 3187.85M |
+
+** Zipping values and the CNPJ values
+#+begin_src clojure
+  (defn cash-flow-zip
+    "zip the CNPJ-key with the cash-flow-value in key-value pairs"
+    [unique-CNPJ-set]
+    (zipmap
+     (map keyword
+          (map #(nth (vec unique-CNPJ-set) %)
+               (range (count unique-CNPJ-set))))
+     (take (count unique-CNPJ-set)
+           (map #(cash-flow % vec-revenues vec-biorc)
+                unique-CNPJ-set))))
+#+end_src
+
+**** Example
+
+Let's take only the first 20 values
+#+begin_src clojure :tangle no
+(take 20 (cash-flow-zip unique-CNPJ))
+#+end_src
+
+***** Results
+
+*The first 20*:
+
+| :36030066000171 | 2823.39M  |
+| :31978102000100 | 1650.10M  |
+| :3022033000120  | -772.41M  |
+| :10752468000196 | 1186.54M  |
+| :33538566000120 | 390.64M   |
+| :23592105000182 | 2985.88M  |
+| :17965748000121 | -189.66M  |
+| :9204186000175  | 2738.02M  |
+| :36446343000121 | 170.42M   |
+| :5106073000186  | 2234.26M  |
+| :34439910000197 | -2669.56M |
+| :28454897000142 | 997.88M   |
+| :12024937000186 | 1927.06M  |
+| :31090953000111 | -3291.20M |
+| :24448670000133 | 1103.6M   |
+| :11069888000135 | 2182.96M  |
+| :31948918000190 | 1645.27M  |
+| :20041014000160 | 1920.94M  |
+| :7379208000102  | 2058.82M  |
+| :30950290000103 | 1693.21M  |
+
+
+All of them,
+#+begin_src clojure :tangle no
+(take (count unique-CNPJ) (cash-flow-zip unique-CNPJ))
+#+end_src
+
+*RESULTS:*
+| :36030066000171 | 2823.39M  |
+| :31978102000100 | 1650.10M  |
+| :3022033000120  | -772.41M  |
+| :10752468000196 | 1186.54M  |
+| :33538566000120 | 390.64M   |
+| :23592105000182 | 2985.88M  |
+| :17965748000121 | -189.66M  |
+| :9204186000175  | 2738.02M  |
+| :36446343000121 | 170.42M   |
+| :5106073000186  | 2234.26M  |
+| :34439910000197 | -2669.56M |
+| :28454897000142 | 997.88M   |
+| :12024937000186 | 1927.06M  |
+| :31090953000111 | -3291.20M |
+| :24448670000133 | 1103.6M   |
+| :11069888000135 | 2182.96M  |
+| :31948918000190 | 1645.27M  |
+| :20041014000160 | 1920.94M  |
+| :7379208000102  | 2058.82M  |
+| :30950290000103 | 1693.21M  |
+| :29540145000167 | -600.45M  |
+| :24508255000128 | -2082.18M |
+| :26039709000194 | 323.45M   |
+| :18487609000100 | 1886.64M  |
+| :18785712000129 | 1106.48M  |
+| :19123018000109 | 2547.74M  |
+| :39613672000108 | 2102.39M  |
+| :34268624000106 | 1527.34M  |
+| :20702307000141 | 797.82M   |
+| :30817144000104 | -1290.06M |
+| :22619379000155 | 2810.95M  |
+| :4050903000138  | 299.01M   |
+| :10779573000119 | 917.65M   |
+| :32814574000190 | 809.29M   |
+| :9442976000199  | 1365.32M  |
+| :31456434000124 | -2160.28M |
+| :19514170000112 | 1660.80M  |
+| :12243151000150 | 158.14M   |
+| :26787657000134 | 955.68M   |
+| :30532388000132 | -2993.73M |
+| :33668333000142 | 746.39M   |
+| :35027452000141 | 1493.71M  |
+| :26193572000128 | 1809.36M  |
+| :19414070000114 | 1154.80M  |
+| :4270139000297  | 1090.41M  |
+| :28531013000106 | 1931.8M   |
+| :24320523000183 | 3042.86M  |
+| :30927327000174 | -1743.96M |
+| :24303621000102 | 721.56M   |
+| :29128607000133 | -9104.64M |
+| :33956704000191 | 3324.85M  |
+| :8833581000154  | -54.06M   |
+| :30073691000114 | -3829.88M |
+| :31908491000105 | -1429.53M |
+| :19461682000168 | 2606.78M  |
+| :13970514000111 | 1059.82M  |
+| :37462842000175 | 1178.28M  |
+| :6283614000104  | 2048.02M  |
+| :5143951000133  | -71.70M   |
+| :30724735000129 | 212.05M   |
+| :27558575000180 | 225.58M   |
+| :27694965000188 | 3631.92M  |
+| :25350032000148 | 641.23M   |
+| :30275287000123 | 3100.78M  |
+| :21521558000192 | 1738.73M  |
+| :34336470000142 | 1909.92M  |
+| :33677849000153 | 205.83M   |
+| :33011957000192 | 2403.70M  |
+| :31269972000100 | 666.35M   |
+| :31891264000106 | 1249.11M  |
+| :34786751000105 | 653.92M   |
+| :23306360000111 | 2135.34M  |
+| :27768380000165 | 2280.19M  |
+| :21148818000126 | 1097.58M  |
+| :24734371000165 | 1966.88M  |
+| :31965819000117 | 2090.26M  |
+| :28314843000181 | 2184.60M  |
+| :6028805000120  | 1639.21M  |
+| :34458721000161 | 1237.32M  |
+| :21238344000103 | 1234.1M   |
+| :29084601000101 | 1621.78M  |
+| :24780893000101 | 1628.8M   |
+| :31140257000172 | 1452.08M  |
+| :10837088000154 | 1190.20M  |
+| :9344871000105  | 653.95M   |
+| :24732142000101 | 2631.01M  |
+| :21049791000114 | 1112.70M  |
+| :26988927000175 | 2081.00M  |
+| :25279612000196 | 568.79M   |
+| :25080236000106 | 2637.2M   |
+| :29247064000173 | 1826.13M  |
+| :22639443000160 | 919.65M   |
+| :33411342000153 | 1684.08M  |
+| :37315376000103 | 3143.22M  |
+| :34094560000174 | 893.31M   |
+| :11125907000101 | 2090.28M  |
+| :18058046000127 | 1171.07M  |
+| :29344821000127 | -1019.03M |
+| :10908817000116 | 915.66M   |
+| :17946892000110 | 1555.00M  |
+| :23018355000103 | 1742.22M  |
+| :22427274000102 | 1499.82M  |
+| :25528983000164 | -2862.79M |
+| :18040732000170 | 3165.95M  |
+| :38346620000150 | -1010.41M |
+| :33094208000176 | 1366.07M  |
+| :11086075000153 | 2166.56M  |
+| :30845872000111 | 1834.57M  |
+| :21917086000191 | 2542.11M  |
+| :36497283000176 | 1183.31M  |
+| :17194123000103 | 575.65M   |
+| :34252263000100 | 402.48M   |
+| :19258542000197 | -281.41M  |
+| :35210834000106 | 276.22M   |
+| :5197741000128  | 90.34M    |
+| :27926434000173 | 1427.26M  |
+| :32956733000190 | 2131.26M  |
+| :30642422000121 | 3360.8M   |
+| :28945518000117 | 1804.7M   |
+| :1004287000190  | 2060.38M  |
+| :32675312000191 | 2378.55M  |
+| :24955588000103 | 1361.53M  |
+| :29265954000108 | 2558.16M  |
+| :20506951000144 | -2650.97M |
+| :20282793000196 | 1821.96M  |
+| :12259758000128 | -280.57M  |
+| :14052224000151 | 605.86M   |
+| :33683433000148 | 1351.08M  |
+| :32809213000155 | -83.10M   |
+| :24941341000120 | 3587.75M  |
+| :30714483000157 | 1818.86M  |
+| :62277520000101 | 312.06M   |
+| :23574436000190 | 1048.71M  |
+| :22975085000166 | -298.98M  |
+| :29642556000163 | 1221.23M  |
+| :1318023000101  | -357.45M  |
+| :24638000000180 | 1609.14M  |
+| :8318496000239  | 2622M     |
+| :31198292000142 | 2103.16M  |
+| :35069677000160 | 6.1M      |
+| :30935224000156 | 1204.26M  |
+| :15455774000184 | 3265.19M  |
+| :28181137000109 | 1025.18M  |
+| :35537755000104 | 3397.11M  |
+| :35190244000169 | 658.50M   |
+| :14397678000164 | 1395.45M  |
+| :26797909000106 | -2378.72M |
+| :26168269000175 | 1336.56M  |
+| :30346052000185 | 2984.52M  |
+| :31254484000129 | 1026.88M  |
+| :32520494000121 | 2112.63M  |
+| :29255601000127 | 968.53M   |
+| :28791052000142 | 1463.08M  |
+| :32437216000105 | -1707.22M |
+| :19514960000106 | -1950.83M |
+| :17071839000113 | 566.69M   |
+| :28470395000105 | 2684.2M   |
+| :30593007000125 | 510.1M    |
+| :30302867000162 | 2601.94M  |
+| :30978628000127 | 2566.61M  |
+| :26689910000117 | 1365.74M  |
+| :20299257000101 | -932.93M  |
+| :34821788000119 | 81.94M    |
+| :26712730000109 | 2912.58M  |
+| :33682109000105 | 2602.92M  |
+| :34577574000149 | 387.78M   |
+| :65477820000114 | 1352.36M  |
+| :22209468000123 | 3187.85M  |
+| :11502444000141 | 2534.75M  |
+| :14842398000118 | 476.07M   |
+| :20923203000167 | 1760.96M  |
+| :28065307000190 | 1298.26M  |
+| :26366223000160 | -231.14M  |
+| :13328221000135 | 2825.30M  |
+| :28326641000150 | 2506.56M  |
+| :32735848000155 | -328.43M  |
+| :30520255000146 | -2380.71M |
+| :34862206000142 | -918.78M  |
+| :33764300000104 | -501.09M  |
+
+** Select the non-positive values (filter)
+
+Take only negative [[https://www.investopedia.com/terms/c/cashflow.asp][cash-flow]].
+#+begin_src clojure :tangle no
+  (filter #(< (second %) 0) table-CNPJ)
+#+end_src
+
+*** Results
+Only negative values
+
+| :3022033000120  | -772.41M  |
+| :17965748000121 | -189.66M  |
+| :34439910000197 | -2669.56M |
+| :31090953000111 | -3291.20M |
+| :29540145000167 | -600.45M  |
+| :24508255000128 | -2082.18M |
+| :30817144000104 | -1290.06M |
+| :31456434000124 | -2160.28M |
+| :30532388000132 | -2993.73M |
+| :30927327000174 | -1743.96M |
+| :29128607000133 | -9104.64M |
+| :8833581000154  | -54.06M   |
+| :30073691000114 | -3829.88M |
+| :31908491000105 | -1429.53M |
+| :5143951000133  | -71.70M   |
+| :29344821000127 | -1019.03M |
+| :25528983000164 | -2862.79M |
+| :38346620000150 | -1010.41M |
+| :19258542000197 | -281.41M  |
+| :20506951000144 | -2650.97M |
+| :12259758000128 | -280.57M  |
+| :32809213000155 | -83.10M   |
+| :22975085000166 | -298.98M  |
+| :1318023000101  | -357.45M  |
+| :26797909000106 | -2378.72M |
+| :32437216000105 | -1707.22M |
+| :19514960000106 | -1950.83M |
+| :20299257000101 | -932.93M  |
+| :26366223000160 | -231.14M  |
+| :32735848000155 | -328.43M  |
+| :30520255000146 | -2380.71M |
+| :34862206000142 | -918.78M  |
+| :33764300000104 | -501.09M  |
+
+** Main call
+#+begin_src clojure :tangle no
+(defn -main
+  "Call on <<Faturamento.csv>> and <<VALORES_VIORC.csv>>;
+  Return \"ledger.csv\", which informs the situation of the balance."
+  [spenditure-table raw-table]
+  (println "Hello, World!"))
+#+end_src
