@@ -45,23 +45,24 @@ A table is given to us, which, among the raw-data given, there are:
 **** Install
 In the place you want to install the program,
 #+begin_src shell
-git clone https://github.com/FlowFinance/CSV-Ledger.git
+git clone https://github.com/BuddhiLW/commons-csv-clj.git
 #+end_src
 
 **** Nativate to the local repository
 #+begin_src shell
-cd https://github.com/FlowFinance/CSV-Ledger.git
+cd commons-csv-clj
 #+end_src
 
 **** Use
+There are two raw-data: billings (installments) and revenues
 #+begin_src shell
-lein run "path-to-Faturas.csv" "path-to-VALORES-BIORC.csv"
+lein run "path-to-revenus.csv" "path-to-billings.csv"
 #+end_src
 
 **** Result
 Navigate to the =data= folder
 #+begin_src shell
-cd CSV-Ledger/data/
+cd commons-csv-clj/data/
 #+end_src
 
 Look at the =ledger.csv=.
@@ -79,7 +80,7 @@ Also, =org.clojure/data.csv= parses csv files to acceptable I/O format in Clojur
 ** Some details to keep in mind
 In the code, we infer that any path is taken in relation to the root folder of the project. So, equivalent to parting from:
 #+begin_src shell
-cd CSV-Ledger/
+cd commons-csv-clj/
 #+end_src
 
 So, reading ="data/Faturamento.csv"=
@@ -91,8 +92,8 @@ Means:
   .
   ├── CHANGELOG.md
   ├── data
-  │   ├── Faturamento.csv
-  │   └── VALORES_BIORC.csv
+  │   ├── revenues.csv
+  │   └── installments.csv
   (...)
 #+end_src
 
@@ -125,14 +126,14 @@ Resuming the output for brevity's sake,
 
 Let's define a name for this input, =raw-data=,
 #+begin_src clojure :tangle no
-(def raw-data (csv/read-csv (io/reader "data/Faturamento.csv"))) 
+(def raw-data (csv/read-csv (io/reader "data/revenues.csv"))) 
 #+end_src
 
 : #'csv-ledger.example/raw-data
 
 We can take the first *row*, by
 #+begin_src clojure :tangle no
-(first (csv/read-csv (io/reader "data/Faturamento.csv")))
+(first (csv/read-csv (io/reader "data/revenues.csv")))
 #+end_src
 
 *Out:*
@@ -149,7 +150,7 @@ Or,
 
 Also,
 #+begin_src clojure :tangle no
-(first (csv/read-csv (io/reader "data/VALORES_BIORC.csv")))
+(first (csv/read-csv (io/reader "data/installments.csv")))
 #+end_src
 
 *Out:*
